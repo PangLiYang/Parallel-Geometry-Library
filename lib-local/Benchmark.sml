@@ -10,7 +10,6 @@ struct
         let
           val (result, tm) = Util.getTime f
         in
-          print (msg ^ " " ^ Time.fmt 4 tm ^ "s\n");
 
           if n <= 1 then (result, List.rev (tm :: tms))
           else loop (tm :: tms) (n - 1)
@@ -32,17 +31,18 @@ struct
         if Time.>= (Time.- (Time.now (), startTime), warmup) then
           () (* warmup done! *)
         else
-          let val (_, tm) = Util.getTime f
-          in print ("warmup_run " ^ Time.fmt 4 tm ^ "s\n"); warmupLoop startTime
+          let 
+            val (_, tm) = Util.getTime f
+          in 
+            warmupLoop startTime
           end
 
       val _ =
         if Time.<= (warmup, Time.zeroTime) then
           ()
         else
-          ( print ("====== WARMUP ======\n")
-          ; warmupLoop (Time.now ())
-          ; print ("==== END WARMUP ====\n")
+          ( 
+            warmupLoop (Time.now ())
           )
 
       val s0 = RuntimeStats.get ()

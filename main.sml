@@ -12,6 +12,7 @@ val _ =
     val nv                    = MGL.per_vertex_normals v f
     val nv_atomic             = MGL.per_vertex_normals_atomic v f
     val lb                    = MGL.local_basis v f
+    val grad_triplets         = MGL.grad_triplet v f
     val grad                  = MGL.grad v f
 
     val mass                  = MGL.mass v f
@@ -34,9 +35,8 @@ val _ =
     print("Test matrix-based iteration solve" ^ "\n");
     Benchmark.run (fn _ => MGL.iteration_step v itermat weight);
     print("Test vertex-based iteration solve" ^ "\n");
-    Benchmark.run (fn _ => MGL.iteration_seqs_step v iterseqs weightseq);
+    Benchmark.run (fn _ => MGL.iteration_seqs_step v iterseqs weightseq); 
     *)
-
     42
 
   end

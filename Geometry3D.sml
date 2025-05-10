@@ -76,7 +76,7 @@ struct
       fun cotangent (v1 : t) (v2 : t) : real = 
         (dot v1 v2) / (2.0 * (length (cross v1 v2) ) )
       
-      fun normal (v1 : t) (v2 : t) (v3 : t) : t =
+      fun triangleNormal (v1 : t) (v2 : t) (v3 : t) : t =
         let
           val e1 = sub v2 v1
           val e2 = sub v3 v1

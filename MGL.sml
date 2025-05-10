@@ -13,6 +13,7 @@ sig
   val per_vertex_normals        : Vertex Seq.t -> Face Seq.t -> Vec Seq.t
   val per_vertex_normals_atomic : Vertex Seq.t -> Face Seq.t -> Vec Seq.t
   val local_basis               : Vertex Seq.t -> Face Seq.t -> (Vec * Vec) Seq.t
+  val grad_triplet              : Vertex Seq.t -> Face Seq.t -> ((int * int) * real) Seq.t
   val grad                      : Vertex Seq.t -> Face Seq.t -> MatCoo
 
   val mass                      : Vertex Seq.t -> Face Seq.t -> real Seq.t
@@ -179,7 +180,7 @@ struct
           val v2 = Seq.nth v i2
           val v3 = Seq.nth v i3
           val area = Vector.triangleArea v1 v2 v3
-          val normal = Vector.normal v1 v2 v3
+          val normal = Vector.triangleNormal v1 v2 v3
           val (g1x, g1y, g1z) = Vector.hat_gardient v1 v2 v3 area normal
           val (g2x, g2y, g2z) = Vector.hat_gardient v2 v3 v1 area normal
           val (g3x, g3y, g3z) = Vector.hat_gardient v3 v1 v2 area normal
@@ -199,11 +200,11 @@ struct
       )
 
       fun cmp (((i1, j1), _), ((i2, j2), _)) =
-        if i1 < i2 then LESS
-        else if i1 > i2 then GREATER
+        if j1 < j2 then LESS
+        else if j1 > j2 then GREATER
         else
-          if j1 < j2 then LESS
-          else if j1 > j2 then GREATER
+          if i1 < i2 then LESS
+          else if i1 > i2 then GREATER
           else EQUAL
     in
       Mergesort.sort cmp (ArraySlice.full row_col_grad_tuples)
@@ -327,11 +328,11 @@ struct
       }
       
       fun cmp (((i1, j1), _), ((i2, j2), _)) =
-        if i1 < i2 then LESS
-        else if i1 > i2 then GREATER
+        if j1 < j2 then LESS
+        else if j1 > j2 then GREATER
         else
-          if j1 < j2 then LESS
-          else if j1 > j2 then GREATER
+          if i1 < i2 then LESS
+          else if i1 > i2 then GREATER
           else EQUAL
     in
       Parallel.parfor (0, nf) (fn i => 
@@ -561,5 +562,5 @@ struct
     in
       ArraySlice.full vv
     end
-  
+
 end

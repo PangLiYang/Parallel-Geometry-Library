@@ -12,6 +12,8 @@ sig
   val per_face_normals          : Vertex Seq.t -> Face Seq.t -> Vec Seq.t
   val per_vertex_normals        : Vertex Seq.t -> Face Seq.t -> Vec Seq.t
   val per_vertex_normals_atomic : Vertex Seq.t -> Face Seq.t -> Vec Seq.t
+  val local_basis               : Vertex Seq.t -> Face Seq.t -> (Vec * Vec) Seq.t
+
   val mass                      : Vertex Seq.t -> Face Seq.t -> real Seq.t
   val mass_atomic               : Vertex Seq.t -> Face Seq.t -> real Seq.t
   val cotmatrix_entries         : Vertex Seq.t -> Face Seq.t -> (real * real * real) Seq.t
@@ -20,7 +22,6 @@ sig
 
   val iteration_preps           : Vertex Seq.t -> Face Seq.t -> (MatCoo * real Seq.t)
   val iteration_step            : Vertex Seq.t -> MatCoo -> real Seq.t -> Vertex Seq.t
-  val iteration_seqs            : Vertex Seq.t -> Face Seq.t -> (int * real) Seq.t Seq.t
   val iteration_seqs_preps      : Vertex Seq.t -> Face Seq.t -> ((int * real) Seq.t Seq.t * real Seq.t)
   val iteration_seqs_step       : Vertex Seq.t -> (int * real) Seq.t Seq.t -> real Seq.t -> Vertex Seq.t
 end =
@@ -98,7 +99,7 @@ struct
 
       fun do_vertex_normal idx v f (face_normals : Vec Seq.t) = 
         let
-          val weight : Vec = loop 0 nf (0.0, 0.0, 0.0) (fn i => fn ww => 
+          val weight : Vec = loop 0 nf Vector.zero (fn i => fn ww => 
             let
               val (v1, v2, v3) = Seq.nth f i
             in
@@ -393,9 +394,7 @@ struct
       )
     end
   
-  (* 
-    Try using Seq of Seq (like adjacency list) instead of matrix
-   *)
+  (* Use Seq of Seq (like adjacency list) instead of matrix *)
 
   fun iteration_seqs v f =
     let 
@@ -434,7 +433,7 @@ struct
       val iteration_seqs = iteration_seqs v f
       val weights = SeqBasis.tabulate 64 (0, nv) (fn i =>
         let
-          val curr_list = Seq.nth iteration_seqs i;
+          val curr_list = Seq.nth iteration_seqs i
         in
           SeqBasis.reduce 64 op+ 0.0 (0, Seq.length curr_list) (fn k => 
             #2 (Seq.nth curr_list k)
@@ -450,17 +449,16 @@ struct
       val nv = Seq.length v
       val vv = SeqBasis.tabulate 64 (0, nv) (fn i =>
         let
-          val curr_list = Seq.nth iteration_seqs i;
-          val nl = Seq.length curr_list;
-          val zero_vec = (0.0, 0.0, 0.0);
-          val w = SeqBasis.reduce 64 Vector.add_tuple_input zero_vec (0, nl) (fn k => 
+          val curr_list = Seq.nth iteration_seqs i
+          val nl = Seq.length curr_list
+          val w = SeqBasis.reduce 64 Vector.add_tuple_input Vector.zero (0, nl) (fn k => 
                     let
-                      val (j, ww) = Seq.nth curr_list k;
+                      val (j, ww) = Seq.nth curr_list k
                       val curr_v = Seq.nth v j
                     in
                       Vector.scale curr_v ww
                     end
-                  );
+                  )
         in
           Vector.scale w (1.0 / (Seq.nth weights i))
         end
@@ -468,5 +466,26 @@ struct
     in
       ArraySlice.full vv
     end
+
+  fun local_basis v f =
+    let
+      val nf = Seq.length f
+      val res = SeqBasis.tabulate 128 (0, nf) (fn i =>
+        let
+          val (i1, i2, i3) = Seq.nth f i
+          val v1 = Seq.nth v i1
+          val v2 = Seq.nth v i2
+          val v3 = Seq.nth v i3
+          val t1 = Vector.normalize (Vector.sub v2 v1)
+          val t2 = Vector.normalize (Vector.cross (Vector.cross t1 (Vector.sub v3 v1)) t1)
+        in
+          (t1, t2)
+        end
+      )
+    in
+      ArraySlice.full res
+    end
+  
+  
 
 end

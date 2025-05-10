@@ -26,17 +26,15 @@ val _ =
     val iterseq               = MGL.iteration_seqs_step v iterseqs weightseq
     -------------------------------------------------------------------------
      *)
-     
+
     val (itermat, weight) = MGL.iteration_preps v f 
     val (iterseqs, weightseq) = MGL.iteration_seqs_preps v f
-    
+     
   in
-    (*
+
     print("Test matrix-based iteration solve" ^ "\n");
     Benchmark.run (fn _ => MGL.iteration_step v itermat weight);
     print("Test vertex-based iteration solve" ^ "\n");
-    Benchmark.run (fn _ => MGL.iteration_seqs_step v iterseqs weightseq); 
-    *)
-    42
+    Benchmark.run (fn _ => MGL.iteration_seqs_step v iterseqs weightseq)
 
   end

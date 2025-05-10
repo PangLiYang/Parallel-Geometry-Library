@@ -89,7 +89,6 @@ struct
         in
           unitNormal
         end
-
     in
       ArraySlice.full (SeqBasis.tabulate 256 (0, n) (fn i => do_face_normals i v f))
     end
@@ -356,7 +355,6 @@ struct
       );      
 
       Mergesort.sort cmp (Hashtable.to_seq ht)
-
     end
   
   fun cotmatrix v f = 

@@ -24,6 +24,8 @@ sig
   val iteration_step            : Vertex Seq.t -> MatCoo -> real Seq.t -> Vertex Seq.t
   val iteration_seqs_preps      : Vertex Seq.t -> Face Seq.t -> ((int * real) Seq.t Seq.t * real Seq.t)
   val iteration_seqs_step       : Vertex Seq.t -> (int * real) Seq.t Seq.t -> real Seq.t -> Vertex Seq.t
+
+  val grad                      : Vertex Seq.t -> Face Seq.t -> ((int * int) * real) Seq.t
 end =
 struct
 
@@ -143,6 +145,25 @@ struct
       );
       ArraySlice.full result
     end 
+
+  fun local_basis v f =
+    let
+      val nf = Seq.length f
+      val res = SeqBasis.tabulate 128 (0, nf) (fn i =>
+        let
+          val (i1, i2, i3) = Seq.nth f i
+          val v1 = Seq.nth v i1
+          val v2 = Seq.nth v i2
+          val v3 = Seq.nth v i3
+          val t1 = Vector.normalize (Vector.sub v2 v1)
+          val t2 = Vector.normalize (Vector.cross (Vector.cross t1 (Vector.sub v3 v1)) t1)
+        in
+          (t1, t2)
+        end
+      )
+    in
+      ArraySlice.full res
+    end
 
   fun mass v f =
     let 
@@ -467,23 +488,48 @@ struct
       ArraySlice.full vv
     end
 
-  fun local_basis v f =
+  fun grad v f =
     let
+      val nv = Seq.length v
       val nf = Seq.length f
-      val res = SeqBasis.tabulate 128 (0, nf) (fn i =>
+      val row_col_grad_tuples = ForkJoin.alloc (nf * 9)
+
+      val _ = Parallel.parforg 64 (0, nf) (fn k =>
         let
-          val (i1, i2, i3) = Seq.nth f i
+          val offset = 9 * k
+          val (i1, i2, i3) = Seq.nth f k
           val v1 = Seq.nth v i1
           val v2 = Seq.nth v i2
           val v3 = Seq.nth v i3
-          val t1 = Vector.normalize (Vector.sub v2 v1)
-          val t2 = Vector.normalize (Vector.cross (Vector.cross t1 (Vector.sub v3 v1)) t1)
+          val area = Vector.triangleArea v1 v2 v3
+          val normal = Vector.normal v1 v2 v3
+          val (g1x, g1y, g1z) = Vector.hat_gardient v1 v2 v3 area normal
+          val (g2x, g2y, g2z) = Vector.hat_gardient v2 v3 v1 area normal
+          val (g3x, g3y, g3z) = Vector.hat_gardient v3 v1 v2 area normal
         in
-          (t1, t2)
+          Array.update (row_col_grad_tuples, offset    , ((k,          i1), g1x));
+          Array.update (row_col_grad_tuples, offset + 1, ((k,          i2), g2x));
+          Array.update (row_col_grad_tuples, offset + 2, ((k,          i3), g3x));
+
+          Array.update (row_col_grad_tuples, offset + 3, ((nf + k,     i1), g1y));
+          Array.update (row_col_grad_tuples, offset + 4, ((nf + k,     i2), g2y));
+          Array.update (row_col_grad_tuples, offset + 5, ((nf + k,     i3), g3y));
+
+          Array.update (row_col_grad_tuples, offset + 6, ((2 * nf + k, i1), g1z));
+          Array.update (row_col_grad_tuples, offset + 7, ((2 * nf + k, i2), g2z));
+          Array.update (row_col_grad_tuples, offset + 8, ((2 * nf + k, i3), g3z))
         end
       )
+
+      fun cmp (((i1, j1), _), ((i2, j2), _)) =
+        if i1 < i2 then LESS
+        else if i1 > i2 then GREATER
+        else
+          if j1 < j2 then LESS
+          else if j1 > j2 then GREATER
+          else EQUAL
     in
-      ArraySlice.full res
+      Mergesort.sort cmp (ArraySlice.full row_col_grad_tuples)
     end
   
   

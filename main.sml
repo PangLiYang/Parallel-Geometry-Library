@@ -7,7 +7,7 @@ val _ =
     
     (*
       Example function calls
-    --------------------------------------------------------------------------
+    -------------------------------------------------------------------------
     val ns                    = MGL.per_face_normals v f
     val nv                    = MGL.per_vertex_normals v f
     val nv_atomic             = MGL.per_vertex_normals_atomic v f
@@ -21,11 +21,13 @@ val _ =
     val iter                  = MGL.iteration_step v itermat weight
     val (iterseqs, weightseq) = MGL.iteration_seqs_preps v f 
     val iterseq               = MGL.iteration_seqs_step v iterseqs weightseq
-    --------------------------------------------------------------------------
+    -------------------------------------------------------------------------
      *)
      
     val (itermat, weight) = MGL.iteration_preps v f 
     val (iterseqs, weightseq) = MGL.iteration_seqs_preps v f
+
+    val grad = MGL.grad v f
 
     
   in
@@ -62,7 +64,6 @@ val _ =
     print("Test vertex-based iteration solve" ^ "\n");
     Benchmark.run (fn _ => MGL.iteration_seqs_step v iterseqs weightseq);
     *)
-    Benchmark.run (fn _ => MGL.local_basis v f);
     42
 
   end

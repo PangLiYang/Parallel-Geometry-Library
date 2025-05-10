@@ -25,7 +25,7 @@ sig
   val iteration_step            : Vertex Seq.t -> MatCoo -> real Seq.t -> Vertex Seq.t
   val iteration_seqs_preps      : Vertex Seq.t -> Face Seq.t -> ((int * real) Seq.t Seq.t * real Seq.t)
   val iteration_seqs_step       : Vertex Seq.t -> (int * real) Seq.t Seq.t -> real Seq.t -> Vertex Seq.t
-  
+
 end =
 struct
 
@@ -163,6 +163,80 @@ struct
       )
     in
       ArraySlice.full res
+    end
+  
+  fun grad_triplet  v f =
+    let
+      val nv = Seq.length v
+      val nf = Seq.length f
+      val row_col_grad_tuples = ForkJoin.alloc (nf * 9)
+
+      val _ = Parallel.parforg 64 (0, nf) (fn k =>
+        let
+          val offset = 9 * k
+          val (i1, i2, i3) = Seq.nth f k
+          val v1 = Seq.nth v i1
+          val v2 = Seq.nth v i2
+          val v3 = Seq.nth v i3
+          val area = Vector.triangleArea v1 v2 v3
+          val normal = Vector.normal v1 v2 v3
+          val (g1x, g1y, g1z) = Vector.hat_gardient v1 v2 v3 area normal
+          val (g2x, g2y, g2z) = Vector.hat_gardient v2 v3 v1 area normal
+          val (g3x, g3y, g3z) = Vector.hat_gardient v3 v1 v2 area normal
+        in
+          Array.update (row_col_grad_tuples, offset    , ((k,          i1), g1x));
+          Array.update (row_col_grad_tuples, offset + 1, ((k,          i2), g2x));
+          Array.update (row_col_grad_tuples, offset + 2, ((k,          i3), g3x));
+
+          Array.update (row_col_grad_tuples, offset + 3, ((nf + k,     i1), g1y));
+          Array.update (row_col_grad_tuples, offset + 4, ((nf + k,     i2), g2y));
+          Array.update (row_col_grad_tuples, offset + 5, ((nf + k,     i3), g3y));
+
+          Array.update (row_col_grad_tuples, offset + 6, ((2 * nf + k, i1), g1z));
+          Array.update (row_col_grad_tuples, offset + 7, ((2 * nf + k, i2), g2z));
+          Array.update (row_col_grad_tuples, offset + 8, ((2 * nf + k, i3), g3z))
+        end
+      )
+
+      fun cmp (((i1, j1), _), ((i2, j2), _)) =
+        if i1 < i2 then LESS
+        else if i1 > i2 then GREATER
+        else
+          if j1 < j2 then LESS
+          else if j1 > j2 then GREATER
+          else EQUAL
+    in
+      Mergesort.sort cmp (ArraySlice.full row_col_grad_tuples)
+    end
+
+  fun grad v f =
+    let
+      val nv = Seq.length v
+      val nf = Seq.length f
+      val triplets = grad_triplet v f
+      val n = Seq.length triplets
+      val i_seq = ForkJoin.alloc n
+      val j_seq = ForkJoin.alloc n
+      val v_seq = ForkJoin.alloc n
+      val _ = Parallel.parforg 64 (0, n) (fn k => 
+        let
+          val triplet = Seq.nth triplets k
+          val (i, j) = #1 triplet
+          val g      = #2 triplet
+        in
+          Array.update (i_seq, k, i);
+          Array.update (j_seq, k, j);
+          Array.update (v_seq, k, g)
+        end
+      );
+    in
+      M.Mat {
+      width = nv,
+      height = 3 * nf,
+      row_indices = ArraySlice.full i_seq,
+      col_indices = ArraySlice.full j_seq,
+      values = ArraySlice.full v_seq
+      }
     end
 
   fun mass v f =
@@ -486,80 +560,6 @@ struct
       )
     in
       ArraySlice.full vv
-    end
-
-  fun grad_triplet  v f =
-    let
-      val nv = Seq.length v
-      val nf = Seq.length f
-      val row_col_grad_tuples = ForkJoin.alloc (nf * 9)
-
-      val _ = Parallel.parforg 64 (0, nf) (fn k =>
-        let
-          val offset = 9 * k
-          val (i1, i2, i3) = Seq.nth f k
-          val v1 = Seq.nth v i1
-          val v2 = Seq.nth v i2
-          val v3 = Seq.nth v i3
-          val area = Vector.triangleArea v1 v2 v3
-          val normal = Vector.normal v1 v2 v3
-          val (g1x, g1y, g1z) = Vector.hat_gardient v1 v2 v3 area normal
-          val (g2x, g2y, g2z) = Vector.hat_gardient v2 v3 v1 area normal
-          val (g3x, g3y, g3z) = Vector.hat_gardient v3 v1 v2 area normal
-        in
-          Array.update (row_col_grad_tuples, offset    , ((k,          i1), g1x));
-          Array.update (row_col_grad_tuples, offset + 1, ((k,          i2), g2x));
-          Array.update (row_col_grad_tuples, offset + 2, ((k,          i3), g3x));
-
-          Array.update (row_col_grad_tuples, offset + 3, ((nf + k,     i1), g1y));
-          Array.update (row_col_grad_tuples, offset + 4, ((nf + k,     i2), g2y));
-          Array.update (row_col_grad_tuples, offset + 5, ((nf + k,     i3), g3y));
-
-          Array.update (row_col_grad_tuples, offset + 6, ((2 * nf + k, i1), g1z));
-          Array.update (row_col_grad_tuples, offset + 7, ((2 * nf + k, i2), g2z));
-          Array.update (row_col_grad_tuples, offset + 8, ((2 * nf + k, i3), g3z))
-        end
-      )
-
-      fun cmp (((i1, j1), _), ((i2, j2), _)) =
-        if i1 < i2 then LESS
-        else if i1 > i2 then GREATER
-        else
-          if j1 < j2 then LESS
-          else if j1 > j2 then GREATER
-          else EQUAL
-    in
-      Mergesort.sort cmp (ArraySlice.full row_col_grad_tuples)
-    end
-
-  fun grad v f =
-    let
-      val nv = Seq.length v
-      val nf = Seq.length f
-      val triplets = grad_triplet v f
-      val n = Seq.length triplets
-      val i_seq = ForkJoin.alloc n
-      val j_seq = ForkJoin.alloc n
-      val v_seq = ForkJoin.alloc n
-      val _ = Parallel.parforg 64 (0, n) (fn k => 
-        let
-          val triplet = Seq.nth triplets k
-          val (i, j) = #1 triplet
-          val g      = #2 triplet
-        in
-          Array.update (i_seq, k, i);
-          Array.update (j_seq, k, j);
-          Array.update (v_seq, k, g)
-        end
-      );
-    in
-      M.Mat {
-      width = nv,
-      height = 3 * nf,
-      row_indices = ArraySlice.full i_seq,
-      col_indices = ArraySlice.full j_seq,
-      values = ArraySlice.full v_seq
-      }
     end
   
 end

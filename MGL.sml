@@ -13,6 +13,7 @@ sig
   val per_vertex_normals        : Vertex Seq.t -> Face Seq.t -> Vec Seq.t
   val per_vertex_normals_atomic : Vertex Seq.t -> Face Seq.t -> Vec Seq.t
   val local_basis               : Vertex Seq.t -> Face Seq.t -> (Vec * Vec) Seq.t
+  val grad                      : Vertex Seq.t -> Face Seq.t -> MatCoo
 
   val mass                      : Vertex Seq.t -> Face Seq.t -> real Seq.t
   val mass_atomic               : Vertex Seq.t -> Face Seq.t -> real Seq.t
@@ -24,8 +25,7 @@ sig
   val iteration_step            : Vertex Seq.t -> MatCoo -> real Seq.t -> Vertex Seq.t
   val iteration_seqs_preps      : Vertex Seq.t -> Face Seq.t -> ((int * real) Seq.t Seq.t * real Seq.t)
   val iteration_seqs_step       : Vertex Seq.t -> (int * real) Seq.t Seq.t -> real Seq.t -> Vertex Seq.t
-
-  val grad                      : Vertex Seq.t -> Face Seq.t -> ((int * int) * real) Seq.t
+  
 end =
 struct
 
@@ -488,7 +488,7 @@ struct
       ArraySlice.full vv
     end
 
-  fun grad v f =
+  fun grad_triplet  v f =
     let
       val nv = Seq.length v
       val nf = Seq.length f
@@ -531,7 +531,35 @@ struct
     in
       Mergesort.sort cmp (ArraySlice.full row_col_grad_tuples)
     end
-  
-  
 
+  fun grad v f =
+    let
+      val nv = Seq.length v
+      val nf = Seq.length f
+      val triplets = grad_triplet v f
+      val n = Seq.length triplets
+      val i_seq = ForkJoin.alloc n
+      val j_seq = ForkJoin.alloc n
+      val v_seq = ForkJoin.alloc n
+      val _ = Parallel.parforg 64 (0, n) (fn k => 
+        let
+          val triplet = Seq.nth triplets k
+          val (i, j) = #1 triplet
+          val g      = #2 triplet
+        in
+          Array.update (i_seq, k, i);
+          Array.update (j_seq, k, j);
+          Array.update (v_seq, k, g)
+        end
+      );
+    in
+      M.Mat {
+      width = nv,
+      height = 3 * nf,
+      row_indices = ArraySlice.full i_seq,
+      col_indices = ArraySlice.full j_seq,
+      values = ArraySlice.full v_seq
+      }
+    end
+  
 end

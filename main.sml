@@ -12,6 +12,8 @@ val _ =
     val nv                    = MGL.per_vertex_normals v f
     val nv_atomic             = MGL.per_vertex_normals_atomic v f
     val lb                    = MGL.local_basis v f
+    val grad                  = MGL.grad v f
+    
     val mass                  = MGL.mass v f
     val mass_atomic           = MGL.mass_atomic v f
     val ce                    = MGL.cotmatrix_entries v f
@@ -26,9 +28,6 @@ val _ =
      
     val (itermat, weight) = MGL.iteration_preps v f 
     val (iterseqs, weightseq) = MGL.iteration_seqs_preps v f
-
-    val grad = MGL.grad v f
-
     
   in
     (*
